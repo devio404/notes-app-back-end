@@ -1,4 +1,5 @@
 // membuat objek validator untuk melakukan validasi dan mengevaluasi apakah validasi itu berhasil atau tidak.
+const InvariantError = require('../../exceptions/InvariantError');
 const { NotePayloadSchema } = require('./schema');
 
 const NotesValidator = {
@@ -6,7 +7,7 @@ const NotesValidator = {
         const validationResult = NotePayloadSchema.validate(payload);
 
         if (validationResult.error){
-            throw new Error(validationResult.error.message);
+            throw new InvariantError(validationResult.error.message);
         }
     }
 }
