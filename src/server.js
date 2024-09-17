@@ -1,16 +1,19 @@
-require("dotenv").config();
+// mengimpor dotenv dan menjalankan konfigurasinya
+require('dotenv').config();
 
-const Hapi = require("@hapi/hapi");
-const Jwt = require("@hapi/jwt");
+const Hapi = require('@hapi/hapi');
+const Jwt = require('@hapi/jwt');
 
-const notes = require("./api/notes");
-const NotesService = require("./services/postgres/NotesService");
-const NotesValidator = require("./validator/notes");
+// notes
+const notes = require('./api/notes');
+const NotesService = require('./services/postgres/NotesService');
+const NotesValidator = require('./validator/notes');
+const ClientError = require('./exceptions/ClientError');
 
-//users
-const users = require("./api/users");
-const UsersService = require("./services/postgres/UsersService");
-const UsersValidator = require("./validator/users");
+// users
+const users = require('./api/users');
+const UsersService = require('./services/postgres/UsersService');
+const UsersValidator = require('./validator/users');
 
 // authentications
 const authentications = require('./api/authentications');
@@ -18,28 +21,33 @@ const AuthenticationsService = require('./services/postgres/AuthenticationsServi
 const TokenManager = require('./tokenize/TokenManager');
 const AuthenticationsValidator = require('./validator/authentications');
 
-const ClientError = require("./exceptions/ClientError");
+// collaborations
+const collaborations = require('./api/collaborations');
+const CollaborationsService = require('./services/postgres/CollaborationsService');
+const CollaborationsValidator = require('./validator/collaborations');
 
 const init = async () => {
-  const notesService = new NotesService(); // buat instance dari NotesService
+  const collaborationsService = new CollaborationsService();
+  const notesService = new NotesService(collaborationsService);
   const usersService = new UsersService();
   const authenticationsService = new AuthenticationsService();
 
-  const server = Hapi.server({  
+  const server = Hapi.server({
     port: process.env.PORT,
     host: process.env.HOST,
     routes: {
       cors: {
-        origin: ["*"],
+        origin: ['*'],
       },
     },
   });
 
+  // registrasi plugin eksternal
   await server.register([
     {
       plugin: Jwt,
-    }
-  ])
+    },
+  ]);
 
   // mendefinisikan strategy autentikasi jwt
   server.auth.strategy('notesapp_jwt', 'jwt', {
@@ -54,9 +62,9 @@ const init = async () => {
       isValid: true,
       credentials: {
         id: artifacts.decoded.payload.id,
-      }
-    })
-  })
+      },
+    }),
+  });
 
   await server.register([
     {
@@ -81,20 +89,27 @@ const init = async () => {
         tokenManager: TokenManager,
         validator: AuthenticationsValidator,
       },
-    }
+    },
+    {
+      plugin: collaborations,
+      options: {
+        collaborationsService,
+        notesService,
+        validator: CollaborationsValidator,
+      },
+    },
   ]);
 
-  server.ext("onPreResponse", (request, h) => {
+  server.ext('onPreResponse', (request, h) => {
     // mendapatkan konteks response dari request
     const { response } = request;
 
-    // penanganan client error secara internal
+    // penanganan client error secara internal.
     if (response instanceof ClientError) {
       const newResponse = h.response({
-        status: "fail",
+        status: 'fail',
         message: response.message,
       });
-
       newResponse.code(response.statusCode);
       return newResponse;
     }
@@ -107,20 +122,3 @@ const init = async () => {
 };
 
 init();
-
-// const init = async () => {
-//   const server = Hapi.server({
-//     port: 3000,
-//     host: process.env.NODE_ENV !== 'production' ? 'localhost' : '0.0.0.0',
-//     routes: {
-//       cors: {
-//         origin: ['*'],
-//       },
-//     },
-//   });
-
-//   server.route(routes);
-
-//   await server.start();
-//   console.log(`Server berjalan pada ${server.info.uri}`);
-// };
